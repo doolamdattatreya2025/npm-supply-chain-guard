@@ -1,7 +1,7 @@
 npm-supply-chain-guard
 ======================
 > 🚀 Detect risky npm dependencies before they compromise your project
-A lightweight Node.js CLI tool to detect npm supply-chain security risks.
+> A lightweight Node.js CLI tool to detect npm supply-chain security risks.
 
 --------------------------------------------------
 
