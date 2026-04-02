@@ -1,16 +1,22 @@
 {
   "name": "npm-supply-chain-guard",
-  "version": "1.0.0",
-  "description": "A lightweight Node.js CLI tool to detect **npm supply-chain attack risks** in your projects.",
-  "main": "index.js",
-  "directories": {
-    "test": "test"
+  "version": "1.1.0",
+  "description": "A lightweight Node.js CLI tool to detect npm supply-chain attack risks in your projects.",
+  "main": "src/index.js",
+  "bin": {
+    "npm-supply-chain-guard": "./src/index.js"
   },
   "scripts": {
-  "test": "node test/test.js"
-},
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+    "test": "node test/test.js"
+  },
+  "keywords": [
+    "npm",
+    "security",
+    "supply-chain",
+    "cli",
+    "cybersecurity"
+  ],
+  "author": "DATTATREYA",
+  "license": "MIT",
   "type": "commonjs"
 }
