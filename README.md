@@ -8,11 +8,14 @@ npm-supply-chain-guard
 QUICK START
 
 git clone https://github.com/doolamdattatreya2025/npm-supply-chain-guard.git
-cd npm-supply-chain-guard
-npm install
-npm install -g .
-npm-supply-chain-guard .
 
+cd npm-supply-chain-guard
+
+npm install
+
+npm install -g .
+
+npm-supply-chain-guard .
 --------------------------------------------------
 
 WHY THIS PROJECT
