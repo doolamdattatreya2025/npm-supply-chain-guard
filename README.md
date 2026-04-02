@@ -69,7 +69,9 @@ This tool performs static analysis and does not replace full vulnerability scann
 INSTALLATION
 
 git clone https://github.com/doolamdattatreya2025/npm-supply-chain-guard.git
+
 cd npm-supply-chain-guard
+
 npm install
 
 (optional global install)
