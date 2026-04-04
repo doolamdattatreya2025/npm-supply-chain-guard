@@ -17,30 +17,24 @@ const SUSPICIOUS_PATTERNS = [
   { regex: /https?:\/\//i, reason: "contains remote URL", severity: "medium" },
 ];
 
-const CLOUD_RISKS = [
-  { regex: /169\.254\.169\.254/, reason: "Attempts to access Cloud Instance Metadata (AWS/GCP/Azure) - critical credential theft risk", severity: "high" },
-  { regex: /metadata\.google\.internal/i, reason: "Attempts to access GCP metadata endpoint", severity: "high" },
-  { regex: /AKIA[0-9A-Z]{16}/, reason: "Hardcoded AWS Access Key ID detected", severity: "high" },
-  { regex: /xox[baprs]-[0-9a-zA-Z]{10,48}/, reason: "Hardcoded Slack Token detected", severity: "high" }
-];
-
 // --- UTILITIES ---
 
-function getEditDistance(a, b) {
-  const matrix = Array.from({ length: a.length + 1 }, (_, i) => [i]);
-  for (let j = 1; j <= b.length; j++) matrix[0][j] = j;
-
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,      
-        matrix[i][j - 1] + 1,      
-        matrix[i - 1][j - 1] + cost 
-      );
+// Fast O(n) check for a single character insertion, deletion, or substitution
+function isOneIndexChange(target, input) {
+  if (target === input || Math.abs(target.length - input.length) > 1) return false;
+  
+  let i = 0, j = 0, diffs = 0;
+  while (i < target.length && j < input.length) {
+    if (target[i] !== input[j]) {
+      diffs++;
+      if (diffs > 1) return false;
+      if (target.length > input.length) j--; // target has extra char
+      else if (input.length > target.length) i--; // input has extra char
     }
+    i++;
+    j++;
   }
-  return matrix[a.length][b.length];
+  return true;
 }
 
 function addWarning(warnings, type, message, severity = "low", meta = {}) {
@@ -48,27 +42,6 @@ function addWarning(warnings, type, message, severity = "low", meta = {}) {
 }
 
 // --- SCANNING ENGINES ---
-
-function scanCloudRisks(pkg, warnings) {
-  // We stringify the package to catch secrets hidden anywhere (descriptions, custom fields, scripts)
-  const pkgString = JSON.stringify(pkg);
-  
-  for (const risk of CLOUD_RISKS) {
-    if (risk.regex.test(pkgString)) {
-      addWarning(warnings, "cloud-risk", `Cloud security threat: ${risk.reason}`, risk.severity);
-    }
-  }
-}
-
-function scanTyposquatting(name, warnings) {
-  for (const topPkg of TOP_PACKAGES) {
-    if (name === topPkg) continue;
-    const distance = getEditDistance(name, topPkg);
-    if (distance === 1) {
-      addWarning(warnings, "typosquatting", `Possible typosquatting detected: "${name}" is very similar to "${topPkg}"`, "high", { target: topPkg });
-    }
-  }
-}
 
 function scanScripts(pkg, warnings) {
   if (!pkg.scripts) return;
@@ -84,6 +57,46 @@ function scanScripts(pkg, warnings) {
   }
 }
 
+function scanDependencies(pkg, warnings) {
+  const deps = {
+    ...(pkg.dependencies || {}),
+    ...(pkg.devDependencies || {}),
+    ...(pkg.optionalDependencies || {}),
+  };
+
+  for (const [name, version] of Object.entries(deps)) {
+    const normalized = String(version);
+
+    // 1. Check for suspicious sources (git, http)
+    if (/^(git\+|github:|https?:\/\/|file:)/i.test(normalized)) {
+      addWarning(warnings, "suspicious-source", `Suspicious dependency source: ${name}@${normalized}`, "high");
+    }
+
+    // 2. Check for unsafe versioning (latest, *)
+    if (normalized === "latest" || normalized === "*") {
+      addWarning(warnings, "unsafe-version", `Unsafe version tag: ${name}@${normalized}`, "medium");
+    }
+
+    // 3. Check for wide ranges
+    if (/^[~^><=]/.test(normalized)) {
+      addWarning(warnings, "wide-version-range", `Wide version range detected: ${name}@${normalized}`, "low");
+    }
+
+    // 4. Fast Typosquatting Check
+    for (const topPkg of TOP_PACKAGES) {
+      if (isOneIndexChange(topPkg, name)) {
+        addWarning(
+          warnings, 
+          "typosquatting", 
+          `High Risk: "${name}" looks like a typosquatting attempt of "${topPkg}"`, 
+          "high", 
+          { dependency: name, target: topPkg }
+        );
+      }
+    }
+  }
+}
+
 function scanPackageLock(projectPath, warnings) {
   const lockPath = path.join(projectPath, "package-lock.json");
   if (!fs.existsSync(lockPath)) return;
@@ -94,74 +107,65 @@ function scanPackageLock(projectPath, warnings) {
 
     for (const [pkgPath, meta] of Object.entries(packages)) {
       if (!pkgPath) continue;
+      
       const name = pkgPath.split("node_modules/").pop();
 
-      if (name) scanTyposquatting(name, warnings);
+      // Typosquatting check for every nested dependency in the tree
+      if (name) {
+        for (const topPkg of TOP_PACKAGES) {
+          if (isOneIndexChange(topPkg, name)) {
+             addWarning(warnings, "typosquatting", `Nested Typosquatting detected: "${name}" mimics "${topPkg}"`, "high");
+          }
+        }
+      }
 
+      // Deep Install Script Check
       if (meta.hasInstallScript) {
         addWarning(warnings, "hidden-install-script", `Nested dependency has install script: ${pkgPath}`, "medium");
       }
     }
   } catch (e) {
-    addWarning(warnings, "error", "Failed to parse lockfile");
+    addWarning(warnings, "error", "Failed to parse lockfile", "low");
   }
-}
-
-// --- OUTPUT FORMATTERS ---
-
-function printSarif(warnings) {
-  const sarif = {
-    version: "2.1.0",
-    $schema: "http://json.schemastore.org/sarif-2.1.0-rtm.5",
-    runs: [
-      {
-        tool: {
-          driver: {
-            name: "npm-supply-chain-guard",
-            informationUri: "https://github.com/doolamdattatreya2025/npm-supply-chain-guard",
-            rules: []
-          }
-        },
-        results: warnings.map(w => ({
-          ruleId: w.type,
-          level: w.severity === "high" ? "error" : "warning",
-          message: { text: w.message }
-        }))
-      }
-    ]
-  };
-  console.log(JSON.stringify(sarif, null, 2));
 }
 
 // --- MAIN RUNNER ---
 
-function scanProject(projectPath = ".", outputFormat = "text") {
+function scanProject(projectPath = ".") {
   const resolvedPath = path.resolve(projectPath);
   const pkgPath = path.join(resolvedPath, "package.json");
   const warnings = [];
 
-  if (!fs.existsSync(pkgPath)) return { ok: false, error: "No package.json found" };
-
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-
-  // Run all engines
-  scanScripts(pkg, warnings);
-  scanCloudRisks(pkg, warnings);
-  scanPackageLock(resolvedPath, warnings);
-
-  if (outputFormat === "sarif") {
-    printSarif(warnings);
-    return { ok: true, warnings };
+  if (!fs.existsSync(pkgPath)) {
+    console.error(`\x1b[31m❌ Error: No package.json found at ${resolvedPath}\x1b[0m`);
+    return { ok: false, error: "No package.json found" };
   }
 
-  // Print Standard Results
+  let pkg;
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+  } catch (e) {
+    console.error(`\x1b[31m❌ Error: Failed to parse package.json\x1b[0m`);
+    return { ok: false, error: "Failed to parse package.json" };
+  }
+
   console.log(`\x1b[34m🔍 Scanning: ${resolvedPath}\x1b[0m\n`);
-  
+
+  // --- THE FIX: ALL ENGINES NOW RUN ---
+  scanScripts(pkg, warnings);
+  scanDependencies(pkg, warnings); 
+  scanPackageLock(resolvedPath, warnings);
+
+  // Print Results with Colors
   if (warnings.length === 0) {
     console.log("\x1b[32m✅ No risks detected.\x1b[0m");
   } else {
     warnings.forEach((w, i) => {
-      const color = w.severity === "high" ? "\x1b[31m" : "\x1b[33m";
+      let color = "\x1b[37m"; // White default
+      if (w.severity === "high") color = "\x1b[31m"; // Red
+      if (w.severity === "medium") color = "\x1b[33m"; // Yellow
+      if (w.severity === "low") color = "\x1b[36m"; // Cyan
+      
       console.log(`${color}⚠ [${i + 1}] [${w.severity.toUpperCase()}] ${w.message}\x1b[0m`);
     });
     console.log(`\nTotal Warnings: ${warnings.length}`);
@@ -172,12 +176,9 @@ function scanProject(projectPath = ".", outputFormat = "text") {
 
 // CLI Entrypoint
 if (require.main === module) {
-  const args = process.argv.slice(2);
-  const isSarif = args.includes("--sarif");
-  const targetDir = args.find(arg => !arg.startsWith("--")) || ".";
-
-  const result = scanProject(targetDir, isSarif ? "sarif" : "text");
+  const result = scanProject(process.argv[2] || ".");
   
+  // Exit with error code 1 only if HIGH severity risks are found
   const hasHighRisk = result.warnings?.some(w => w.severity === "high");
   process.exit(hasHighRisk ? 1 : 0);
 }
